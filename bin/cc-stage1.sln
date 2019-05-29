@@ -1,0 +1,30 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.31101.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{911E67C6-3D85-4FCE-B560-20A9C3E3FF48}") = "cc-stage1", "cc-stage1.exe", "{2AD866D5-B4D0-4C6F-A282-34933E8E0276}"
+	ProjectSection(DebuggerProjectSystem) = preProject
+		PortSupplier = 00000000-0000-0000-0000-000000000000
+		Executable = C:\Dave2015\sanos\sanos-compiler-only\bin\cc-stage1.exe
+		RemoteMachine = DAVE-PC8
+		StartingDirectory = C:\Dave2015\sanos\sanos-compiler-only\cc
+		Arguments = -o /Dave2015/sanos/sanos-compiler-only/bin/cc-stage2.exe -m cc-stage2MAPFILE asm386.c asm.c cc.c codegen386.c codegen.c compiler.c elf.c pe.c preproc.c symbol.c type.c util.c -DUSE_LOCAL_HEAP -noshare
+		Environment = ccprefix=C:\Dave2015\sanos\sanos-compiler-only\	
+		LaunchingEngine = 00000000-0000-0000-0000-000000000000
+		UseLegacyDebugEngines = No
+		LaunchSQLEngine = No
+		AttachLaunchAction = No
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2AD866D5-B4D0-4C6F-A282-34933E8E0276}.Debug|x86.ActiveCfg = Debug|x86
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
