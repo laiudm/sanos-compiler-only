@@ -25,8 +25,9 @@ compile:
 	cmp $(CURDIR)/bin/cc-stage2.exe $(CURDIR)/bin/cc-stage3.exe 0x8c
 
 unittest:
-	cc-stage3 -o test/$(UNITTEST).exe test/$(UNITTEST).c test/testmain.c
-	test/$(UNITTEST).exe
+	cc-stage3 -o bin/unittest.exe test/$(UNITTEST).c test/testmain.c
+	unittest.exe
+	rm bin/unittest.exe
 	
 test:
 	make unittest UNITTEST=arith
