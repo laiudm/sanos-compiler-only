@@ -37,6 +37,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <stdbool.h>
 
 #include "elf.h"
 

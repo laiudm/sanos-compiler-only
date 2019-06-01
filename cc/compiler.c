@@ -35,7 +35,7 @@ int func_vc;
 char *func_name;
 
 // Keywords	// dcm: with this defn, it creates an array of strings. tokens.h also includes opcodes.h. No sure how the null terminating string is created.
-static const char tcc_keywords[] = 
+static const char tcc_keywords[] =
 #define DEF(id, str) str "\0"
 #include "tokens.h"
 #undef DEF
@@ -200,6 +200,7 @@ void parse_declspec(AttributeDef *ad) {
 }
 
 // Parse type modifers
+//dcm: deals with: attribute cdecl stdcall fastcall -- all outside C spec.
 void parse_modifiers(AttributeDef *ad) {
   if (tok == TOK_ATTRIBUTE1 || tok == TOK_ATTRIBUTE2) parse_attribute(ad);
   if (tok == TOK_DECLSPEC) parse_declspec(ad);
@@ -226,6 +227,7 @@ Sym *struct_find(int v) {
 }
 
 // enum/struct/union declaration. u is either VT_ENUM or VT_STRUCT
+//dcm: called from parse_btype() only
 void struct_decl(CType *type, int u) {
   int a, v, size, align, maxalign, c, offset;
   int bit_size, bit_pos, bsize, bt, lbit_pos;
@@ -396,6 +398,8 @@ void struct_decl(CType *type, int u) {
   }
 }
 
+//dcm: parses the {{ storage-class-specifier | type-specifier | type-qualifier | fn-specifier }} portion of a declaration
+//dcm: called from lots of places - decl(), decl_initializer(), func_decl_list() parse_expr_type() parse_type() post_type() struct_decl() unary()
 // Return 0 if no type declaration. otherwise, return the basic type and skip it. 
 int parse_btype(CType *type, AttributeDef *ad) {
   int t, u, type_found, typespec_found, typedef_found;
@@ -584,7 +588,7 @@ done:
   }
   t &= ~VT_SIGNED;		//dcm: - ignore the signed specifier elsewhere.
 
-  // long is never used as type	//dcm: likewise remove long as a specifier & replacw with INT.
+  // long is never used as type	//dcm: likewise remove long as a specifier & replace with INT.
   if ((t & VT_BTYPE) == VT_LONG) {
     t = (t & ~VT_BTYPE) | VT_INT;
   }
@@ -605,6 +609,8 @@ void convert_parameter_type(CType *pt) {
   }
 }
 
+//dcm: declaration parsing - called from type_decl() and calls itself recursively
+//dcm: check for and parse '(' and '[' to deal with declarator[ ...various...] | declarator(...various...)
 void post_type(CType *type, AttributeDef *ad) {
   int n, l, t1, arg_size, align;
   Sym **plast, *s, *first;
@@ -697,8 +703,8 @@ void post_type(CType *type, AttributeDef *ad) {
 // expected. 'type' should contain the basic type. 'ad' is the
 // attribute definition of the basic type. It can be modified by
 // type_decl().
-//dcm: called from decl() to start parsing "declarator | declarator = initializer"
-//dcm: also called from 8! other places too!
+//dcm: parses the declarator: {{*}} {{type-qualifier}} [ identifier | (declarator) | declarator[ ...various...] | declarator(...various...)
+//dcm: called from decl() and from 8! other places too!
 void type_decl(CType *type, AttributeDef *ad, int *v, int td) {
   Sym *s;
   CType type1, *type2;
@@ -1751,12 +1757,18 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg, int 
   } else if (tok == TOK_FOR) {
     CodeBuffer cb;
     next();
-    skip('(');
-    if (tok != ';') {
-      gexpr();
-      vpop();
-    }
-    skip(';');
+	// Record local declaration stack position	//dcm: added for local var decl. processing
+	s = local_stack;
+    skip('('); 
+    if (tok != ';') {		//dcm: add decl code here. declSingular() eats the terminating ";" if it finds a decl
+		if (!isDeclSingular(VT_LOCAL)) {
+			gexpr();
+			vpop();
+			skip(';');
+		}
+	} else {	// deal with empty 1st clause.
+		skip(';');
+	}
     a = glabel();
     b = 0;
     c = 0;
@@ -1780,6 +1792,8 @@ void block(int *bsym, int *csym, int *case_sym, int *def_sym, int case_reg, int 
     paste_code_buffer(&cb);
     gjmp(a, 0);
     gsym(b);
+	// Pop locally defined symbols		//dcm: added for local var decl. processing
+	sym_pop(&local_stack, s);
   } else if (tok == TOK_DO) {
     next();
     a = 0;
@@ -2035,6 +2049,7 @@ void decl_designator(CType *type, Section *sec, unsigned long c, int *cur_index,
 #define EXPR_ANY   2
 
 // Store a value or an expression directly in global data or in local array
+//dcm: called multiple times from decl_initializer()
 void init_putv(CType *type, Section *sec, unsigned long c, int v, int expr_type) {
   int saved_global_expr, bt, bit_pos, bit_size;
   void *ptr;
@@ -2143,6 +2158,7 @@ void init_putz(CType *t, Section *sec, unsigned long c, int size) {
 // If 'sec' is NULL, it means stack based allocation. 
 // 'first' is true if array '{' must be read (multi dimension implicit array init handling). 
 // 'size_only' is true if size only evaluation is wanted (only for arrays).
+//dcm: called from decl_designator(), decl_initializer(), decl_initializer_alloc()
 void decl_initializer(CType *type, Section *sec, unsigned long c, int first, int size_only) {
   int index, array_length, n, no_oblock, nb, parlevel, i;
   int size1, align1, expr_type;
@@ -2624,37 +2640,39 @@ void gen_inline_functions(void) {
   }
 }
 
-// 'l' is VT_LOCAL or VT_CONST to define default storage type
-//dcm: VT_CONST when called from tcc_compile() to parse a "translation-unit"
-void decl(int l) {
+//dcm: parse a single declaration if possible, otherwise return false.
+//dcm: declaration is as defined in the C standard: "specifiers-and-qualifiers declarators-and-initialisers ;"
+//dcm: see: https://en.cppreference.com/w/c/language/declarations
+//dcm: was called decl(), but refactored to move the outer loop into a separate function
+int isDeclSingular(int l) {
   int v, has_init, r;
   CType type, btype;
   Sym *sym;
   AttributeDef ad;
-  
-  while (1) {
+
     if (!parse_btype(&btype, &ad)) {
       // Skip redundant ';'
       // TODO: find more elegant solution
       if (tok == ';') {
         next();
-        continue;
+		return true; // continue;
       }
       if (l == VT_CONST && (tok == TOK_ASM1 || tok == TOK_ASM2 || tok == TOK_ASM3)) {
         // Global asm block
         asm_global_instr();
-        continue;
+		return true; // continue;
       }
       // Special test for old K&R protos without explicit int type. 
       // Only accepted when defining global data
-      if (l == VT_LOCAL || tok < TOK_DEFINE) break;
+      if (l == VT_LOCAL || tok < TOK_DEFINE)
+		  return false; // break;		//dcm: this is the sole place where the outer loop is exited.
       btype.t = VT_INT;
     }
     
     if (((btype.t & VT_BTYPE) == VT_ENUM || (btype.t & VT_BTYPE) == VT_STRUCT) && tok == ';') {
       // We accept no variable after
       next();
-      continue;
+	  return true; // continue;
     }
 
     // Iterate thru each declaration
@@ -2811,18 +2829,26 @@ void decl(int l) {
             } else {
               r |= l;
             }
-            if (has_init) next();
+            if (has_init) next();		//dcm: why eat the "=" here? Could have eaten when it was first seen?
             decl_initializer_alloc(&type, &ad, r, has_init, v, l);
           }
         }
         if (tok != ',') {
           skip(';');
-          break;
+          break;		//dcm: takes flow to the outer while. (so breaks out of the end of the inner loop)
         }
         next();
       }
-    }
-  }
+    }		//dcm: end of inner while()
+	return true;
+}
+
+// 'l' is VT_LOCAL or VT_CONST to define default storage type
+//dcm: Called from just 2x places:
+//dcm: with VT_CONST when called from tcc_compile() to parse a "translation-unit"
+//dcm: with VT_LOCAL when called from block() to parse what follows a "{"
+void decl(int l) {
+	do {} while (isDeclSingular(l));
 }
 
 // Better than nothing, but needs extension to handle '-E' option correctly too

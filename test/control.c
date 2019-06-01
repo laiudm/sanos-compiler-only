@@ -50,8 +50,8 @@ static void test_for() {
     }
     expect(5 + 6 + 7 + 8, acc);
 	
-	int x, y, z;
-    for (/*int*/ x = 3, y = 5, z = 8; x < 100; x++, y++, z+=2)
+	//int x, y, z;
+    for (int x = 3, y = 5, z = 8; x < 100; x++, y++, z+=2)
         expect(z, x + y);
 
     for (;;)

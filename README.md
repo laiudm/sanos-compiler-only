@@ -7,3 +7,10 @@ All code is written to use sanos's operating system interface (API [here](http:/
 
 I've ported over a number of compiler tests from the 8cc compiler project.
 
+1 June 2019
+-----------
+
+Completed enhancing the compiler to allow declarations within a for() loop.
+
+
+
